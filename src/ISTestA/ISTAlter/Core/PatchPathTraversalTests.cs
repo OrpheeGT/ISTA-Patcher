@@ -3,6 +3,8 @@
 
 namespace ISTestA.ISTAlter.Core;
 
+using global::ISTAlter.Utils;
+
 /// <summary>
 /// Tests for path traversal vulnerability in Patch.PatchSingleFile.
 /// </summary>
@@ -103,41 +105,64 @@ public class PatchPathTraversalTests
     }
 
     /// <summary>
-    /// Test that path validation would prevent traversal attacks.
-    /// This test demonstrates the fix suggested in the code review.
+    /// Test that production path validation rejects traversal attempts that resolve outside the base directory.
     /// </summary>
     [Test]
     public void ValidatePath_RejectsPathTraversal()
     {
-        // Arrange
         var basePath = Path.GetFullPath(_testBasePath);
         var traversalAttempt = Path.Combine("..", "sensitive.dll");
         var fullPath = Path.GetFullPath(Path.Join(basePath, traversalAttempt));
 
-        // Act: Check if path is within base directory
-        var isValid = fullPath.StartsWith(basePath, StringComparison.OrdinalIgnoreCase);
-
-        // Assert: Traversal should be detected and rejected
-        Assert.That(isValid, Is.False,
+        Assert.That(PathSafetyUtils.IsPathWithinDirectory(basePath, fullPath), Is.False,
             "Path traversal should be detected and rejected by validation");
     }
 
     /// <summary>
-    /// Test that legitimate paths within the base directory are accepted.
+    /// Test that production path validation accepts legitimate paths within the base directory.
     /// </summary>
     [Test]
     public void ValidatePath_AcceptsLegitimateSubdirectoryPath()
     {
-        // Arrange
         var basePath = Path.GetFullPath(_testBasePath);
-        const string legitimatePath = @"subdir\file.dll";
+        var legitimatePath = Path.Combine("subdir", "file.dll");
         var fullPath = Path.GetFullPath(Path.Join(basePath, legitimatePath));
 
-        // Act
-        var isValid = fullPath.StartsWith(basePath, StringComparison.OrdinalIgnoreCase);
-
-        // Assert
-        Assert.That(isValid, Is.True,
+        Assert.That(PathSafetyUtils.IsPathWithinDirectory(basePath, fullPath), Is.True,
             "Legitimate subdirectory paths should be accepted");
+    }
+
+    /// <summary>
+    /// Test that paths in sibling directories with the same textual prefix are rejected.
+    /// </summary>
+    [Test]
+    public void ValidatePath_RejectsSiblingDirectoryWithSamePrefix()
+    {
+        var parentPath = Path.GetDirectoryName(_testBasePath)!;
+        var basePath = Path.Combine(parentPath, "ISTA");
+        var siblingPath = Path.Combine(parentPath, "ISTA2", "file.dll");
+        Directory.CreateDirectory(basePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(siblingPath)!);
+
+        Assert.That(PathSafetyUtils.IsPathWithinDirectory(basePath, siblingPath), Is.False,
+            "Sibling directories with the same textual prefix must not be accepted");
+    }
+
+    /// <summary>
+    /// Test that resolving relative paths rejects rooted paths and relative paths that escape the base directory.
+    /// </summary>
+    [Test]
+    public void TryResolveRelativePath_RejectsRootedAndEscapingPaths()
+    {
+        var basePath = Path.GetFullPath(_testBasePath);
+        var rootedPath = Path.GetFullPath(Path.Combine(_tempTargetPath, "outside.dll"));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(PathSafetyUtils.TryResolveRelativePath(basePath, Path.Combine("subdir", "file.dll"), out var resolved), Is.True);
+            Assert.That(PathSafetyUtils.IsPathWithinDirectory(basePath, resolved), Is.True);
+            Assert.That(PathSafetyUtils.TryResolveRelativePath(basePath, Path.Combine("..", "outside.dll"), out _), Is.False);
+            Assert.That(PathSafetyUtils.TryResolveRelativePath(basePath, rootedPath, out _), Is.False);
+        }
     }
 }

@@ -138,6 +138,14 @@
                                         Padding="16,8"
                                         HorizontalContentAlignment="Center" />
                                 <Button DockPanel.Dock="Right"
+                                        ToolTip.Tip="Cancel running command"
+                                        Command="{Binding CancelCommand}"
+                                        IsVisible="{Binding IsExecuting}"
+                                        Margin="0,0,4,0"
+                                        Padding="8,8">
+                                    <i:Icon Value="fa-solid fa-stop" FontSize="13" />
+                                </Button>
+                                <Button DockPanel.Dock="Right"
                                         ToolTip.Tip="Reset parameters to recommended defaults"
                                         Command="{Binding ResetToPresetCommand}"
                                         IsVisible="{Binding HasPreset}"

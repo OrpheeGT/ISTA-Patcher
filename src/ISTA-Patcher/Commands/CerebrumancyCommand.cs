@@ -29,6 +29,8 @@ public class CerebrumancyCommand : OptionalPatchOption, ICommonPatchOption
 {
     public RootCommand? ParentCommand { get; set; }
 
+    public CancellationToken CancellationToken { get; set; }
+
     public bool Restore { get; set; }
 
     public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
@@ -98,6 +100,7 @@ public class CerebrumancyCommand : OptionalPatchOption, ICommonPatchOption
             Manifestation = this.Manifestation,
             Base64 = this.Base64,
             Compulsion = this.Compulsion,
+            CancellationToken = this.CancellationToken.CanBeCanceled ? this.CancellationToken : Global.CancellationToken,
             Include = Global.Config.GetSection("Settings:Default:Include").Get<string[]?>() ?? [],
             Exclude = Global.Config.GetSection("Settings:Default:Exclude").Get<string[]?>() ?? [],
         };
@@ -139,7 +142,7 @@ public class CerebrumancyCommand : OptionalPatchOption, ICommonPatchOption
 
             await using var fs = File.OpenRead(opts.LoadPrimamind);
             using var sr = new StreamReader(fs, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            primamindXml = await sr.ReadToEndAsync().ConfigureAwait(false);
+            primamindXml = await sr.ReadToEndAsync(opts.CancellationToken).ConfigureAwait(false);
             Log.Debug("Loaded primamind from {Primamind}", opts.LoadPrimamind);
         }
 
@@ -172,7 +175,7 @@ public class CerebrumancyCommand : OptionalPatchOption, ICommonPatchOption
                 await using (fs.ConfigureAwait(false))
                 {
                     using var sr = new StreamReader(fs, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-                    solicitationXml = await sr.ReadToEndAsync().ConfigureAwait(false);
+                    solicitationXml = await sr.ReadToEndAsync(opts.CancellationToken).ConfigureAwait(false);
                     Log.Debug("Loaded solicitation from {LicensePath}", opts.Solicitation);
                 }
             }
@@ -180,7 +183,7 @@ public class CerebrumancyCommand : OptionalPatchOption, ICommonPatchOption
 
         if (opts.CarvingPrimamind)
         {
-            await PerformCarvingPrimamind(carvedPrimamindPath, opts.primamindIntensity).ConfigureAwait(false);
+            await PerformCarvingPrimamind(carvedPrimamindPath, opts.primamindIntensity, opts.CancellationToken).ConfigureAwait(false);
             return 0;
         }
 
@@ -211,6 +214,7 @@ public class CerebrumancyCommand : OptionalPatchOption, ICommonPatchOption
                 Verbosity = opts.Verbosity,
                 TargetPath = opts.Mentacorrosion,
                 Force = opts.Compulsion,
+                CancellationToken = opts.CancellationToken,
             });
 
             return 0;
@@ -220,7 +224,7 @@ public class CerebrumancyCommand : OptionalPatchOption, ICommonPatchOption
         return 1;
     }
 
-    private static async Task PerformCarvingPrimamind(string carvedPrimamindPath, int primamindIntensity)
+    private static async Task PerformCarvingPrimamind(string carvedPrimamindPath, int primamindIntensity, CancellationToken cancellationToken)
     {
         using var rsa = new RSACryptoServiceProvider(primamindIntensity);
         try
@@ -229,7 +233,7 @@ public class CerebrumancyCommand : OptionalPatchOption, ICommonPatchOption
 
             await using var fs = new FileStream(carvedPrimamindPath, FileMode.Create);
             await using var sw = new StreamWriter(fs);
-            await sw.WriteAsync(privateKey).ConfigureAwait(false);
+            await sw.WriteAsync(privateKey.AsMemory(), cancellationToken).ConfigureAwait(false);
             Log.Information("Generated key pair located at {CarvedPrimamindPath}", carvedPrimamindPath);
         }
         finally
@@ -289,7 +293,7 @@ public class CerebrumancyCommand : OptionalPatchOption, ICommonPatchOption
         if (opts.Manifestation != null)
         {
             await using var fileStream = File.Create(opts.Manifestation);
-            await fileStream.WriteAsync(signedLicense).ConfigureAwait(false);
+            await fileStream.WriteAsync(signedLicense, opts.CancellationToken).ConfigureAwait(false);
         }
         else
         {

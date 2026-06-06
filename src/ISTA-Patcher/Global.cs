@@ -11,6 +11,8 @@ public static class Global
 {
     public static LoggingLevelSwitch LevelSwitch { get; } = new();
 
+    public static CancellationToken CancellationToken { get; set; }
+
     public static readonly IConfigurationRoot Config;
 
     static Global()

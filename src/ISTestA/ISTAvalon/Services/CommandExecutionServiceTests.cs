@@ -17,6 +17,7 @@ public class CommandExecutionServiceTests
         ChildCommand.LastName = null;
         ChildCommand.LastTags = [];
         ChildCommand.LastPatchType = default;
+        CancellableCommand.TokenWasInjected = false;
     }
 
     [Test]
@@ -67,6 +68,23 @@ public class CommandExecutionServiceTests
             CommandExecutionService.ExecuteAsync(descriptor, []));
 
         Assert.That(ex!.Message, Does.Contain(nameof(MissingRunCommand)));
+    }
+
+    [Test]
+    public void ExecuteAsync_PropagatesCancellationToCommand()
+    {
+        var descriptor = new CommandDescriptor
+        {
+            Name = "cancellable",
+            CommandType = typeof(CancellableCommand),
+            Parameters = [],
+        };
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        Assert.That(
+            async () => await CommandExecutionService.ExecuteAsync(descriptor, [], cts.Token),
+            Throws.InstanceOf<OperationCanceledException>());
+        Assert.That(CancellableCommand.TokenWasInjected, Is.True);
     }
 
     private static ParameterViewModel CreateParameter<TCommand>(
@@ -135,5 +153,19 @@ public class CommandExecutionServiceTests
     public sealed class MissingRunCommand
     {
         public string? Name { get; set; }
+    }
+
+    public sealed class CancellableCommand
+    {
+        public static bool TokenWasInjected { get; set; }
+
+        public CancellationToken CancellationToken { get; set; }
+
+        public async Task<int> RunAsync()
+        {
+            TokenWasInjected = CancellationToken.CanBeCanceled;
+            await Task.Delay(TimeSpan.FromSeconds(10), CancellationToken);
+            return 0;
+        }
     }
 }

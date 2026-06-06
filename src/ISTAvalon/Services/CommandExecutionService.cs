@@ -10,9 +10,12 @@ using ISTAvalon.ViewModels;
 
 public static class CommandExecutionService
 {
-    public static async Task<int> ExecuteAsync(CommandDescriptor descriptor, IReadOnlyList<ParameterViewModel> parameters)
+    public static async Task<int> ExecuteAsync(CommandDescriptor descriptor, IReadOnlyList<ParameterViewModel> parameters, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var command = Activator.CreateInstance(descriptor.CommandType)!;
+        SetCancellationToken(command, cancellationToken);
 
         // Set the parent command with parent-level options when available.
         var parentProp = descriptor.CommandType.GetProperty("ParentCommand", BindingFlags.Public | BindingFlags.Instance);
@@ -48,17 +51,28 @@ public static class CommandExecutionService
 
         using var capture = new ConsoleCaptureScope(App.LogSink.Publish);
 
+        cancellationToken.ThrowIfCancellationRequested();
         var result = runMethod.Invoke(command, null);
         switch (result)
         {
             case Task<int> taskInt:
-                return await taskInt.ConfigureAwait(false);
+                return await taskInt.WaitAsync(cancellationToken).ConfigureAwait(false);
             case Task task:
-                await task.ConfigureAwait(false);
+                await task.WaitAsync(cancellationToken).ConfigureAwait(false);
                 break;
         }
 
         return 0;
+    }
+
+    private static void SetCancellationToken(object command, CancellationToken cancellationToken)
+    {
+        var cancellationTokenProperty = command.GetType().GetProperty("CancellationToken", BindingFlags.Public | BindingFlags.Instance);
+        if (cancellationTokenProperty?.PropertyType == typeof(CancellationToken) &&
+            cancellationTokenProperty.CanWrite)
+        {
+            cancellationTokenProperty.SetValue(command, cancellationToken);
+        }
     }
 
     private static object? ConvertValue(ParameterViewModel param)

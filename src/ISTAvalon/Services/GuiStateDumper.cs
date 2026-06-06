@@ -54,6 +54,14 @@ public static class GuiStateDumper
         IsExecuting = tab.IsExecuting,
         HasPreset = tab.HasPreset,
         IsLogPanelExpanded = tab.IsLogPanelExpanded,
+        CancelButton = new CommandControlDump
+        {
+            Role = "button",
+            Icon = "fa-solid fa-stop",
+            Tooltip = "Cancel running command",
+            Command = nameof(tab.CancelCommand),
+            IsVisible = tab.IsExecuting,
+        },
         LogPanel = BuildLogPanelDump(tab),
         Controls = tab.Parameters.Select(p => BuildParameterEditorDump(tab, p)).ToList(),
         Status = tab.StatusText,
@@ -263,6 +271,7 @@ public static class GuiStateDumper
         public required bool IsExecuting { get; init; }
         public required bool HasPreset { get; init; }
         public required bool IsLogPanelExpanded { get; init; }
+        public required CommandControlDump CancelButton { get; init; }
         public required LogPanelDump LogPanel { get; init; }
         public required List<ParameterEditorDump> Controls { get; init; }
         public required string Status { get; init; }

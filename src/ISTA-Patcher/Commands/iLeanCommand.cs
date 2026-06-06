@@ -24,6 +24,8 @@ public class iLeanCommand
 {
     public RootCommand? ParentCommand { get; set; }
 
+    public CancellationToken CancellationToken { get; set; }
+
     [CliOption(Description = "Specify the cipher type.", Required = false)]
     public ISTAOptions.CipherType CipherType { get; set; } = ISTAOptions.CipherType.DefaultCipher;
 
@@ -66,6 +68,7 @@ public class iLeanCommand
             Encrypt = this.Encrypt,
             Decrypt = this.Decrypt,
             Output = this.Output,
+            CancellationToken = this.CancellationToken.CanBeCanceled ? this.CancellationToken : Global.CancellationToken,
         };
 
         await Execute(opts);
@@ -181,7 +184,7 @@ public class iLeanCommand
 
         if (!string.IsNullOrEmpty(opts.Output))
         {
-            await File.WriteAllTextAsync(opts.Output, result).ConfigureAwait(false);
+            await File.WriteAllTextAsync(opts.Output, result, opts.CancellationToken).ConfigureAwait(false);
             Log.Information("Result is written to {Output}", opts.Output);
         }
         else
@@ -197,10 +200,11 @@ public class iLeanCommand
         try
         {
             using var encryption = new iLeanCipher(opts.MachineGuid!, opts.VolumeSerialNumber!);
+            opts.CancellationToken.ThrowIfCancellationRequested();
             if (!string.IsNullOrEmpty(opts.Encrypt))
             {
                 var content = File.Exists(opts.Encrypt)
-                    ? await File.ReadAllTextAsync(opts.Encrypt).ConfigureAwait(false)
+                    ? await File.ReadAllTextAsync(opts.Encrypt, opts.CancellationToken).ConfigureAwait(false)
                     : opts.Encrypt;
                 return encryption.Encrypt(content);
             }
@@ -208,7 +212,7 @@ public class iLeanCommand
             if (!string.IsNullOrEmpty(opts.Decrypt))
             {
                 var content = File.Exists(opts.Decrypt)
-                    ? await File.ReadAllTextAsync(opts.Decrypt).ConfigureAwait(false)
+                    ? await File.ReadAllTextAsync(opts.Decrypt, opts.CancellationToken).ConfigureAwait(false)
                     : opts.Decrypt;
                 return encryption.Decrypt(content);
             }
@@ -227,10 +231,11 @@ public class iLeanCommand
         try
         {
             using var encryption = new iLeanPasswordCipher(opts.Password!);
+            opts.CancellationToken.ThrowIfCancellationRequested();
             if (!string.IsNullOrEmpty(opts.Encrypt))
             {
                 var content = File.Exists(opts.Encrypt)
-                    ? await File.ReadAllTextAsync(opts.Encrypt).ConfigureAwait(false)
+                    ? await File.ReadAllTextAsync(opts.Encrypt, opts.CancellationToken).ConfigureAwait(false)
                     : opts.Encrypt;
                 return encryption.Encrypt(content);
             }
@@ -238,7 +243,7 @@ public class iLeanCommand
             if (!string.IsNullOrEmpty(opts.Decrypt))
             {
                 var content = File.Exists(opts.Decrypt)
-                    ? await File.ReadAllTextAsync(opts.Decrypt).ConfigureAwait(false)
+                    ? await File.ReadAllTextAsync(opts.Decrypt, opts.CancellationToken).ConfigureAwait(false)
                     : opts.Decrypt;
                 return encryption.Decrypt(content);
             }

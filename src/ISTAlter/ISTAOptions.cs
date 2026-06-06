@@ -42,6 +42,8 @@ public static class ISTAOptions
 
         public TransactionHandler Transaction { get; set; }
 
+        public CancellationToken CancellationToken { get; set; }
+
         public bool Restore { get; set; }
 
         public string[]? Include { get; set; }

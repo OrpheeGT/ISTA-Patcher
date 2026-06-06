@@ -21,6 +21,7 @@ public class CommandTabViewModel : ObservableObject
     private string _statusText = "Ready";
     private bool _isLogPanelExpanded = true;
     private CommandDescriptor? _selectedCommand;
+    private CancellationTokenSource? _executionCancellationTokenSource;
 
     public CommandDescriptor RootDescriptor { get; }
 
@@ -58,6 +59,7 @@ public class CommandTabViewModel : ObservableObject
             if (SetProperty(ref _isExecuting, value))
             {
                 ((AsyncRelayCommand)ExecuteCommandCommand).NotifyCanExecuteChanged();
+                ((RelayCommand)CancelCommand).NotifyCanExecuteChanged();
             }
         }
     }
@@ -75,6 +77,8 @@ public class CommandTabViewModel : ObservableObject
     }
 
     public ICommand ExecuteCommandCommand { get; }
+
+    public ICommand CancelCommand { get; }
 
     public ICommand ClearOutputCommand { get; }
 
@@ -97,6 +101,7 @@ public class CommandTabViewModel : ObservableObject
 
         HasPreset = preset is { Count: > 0 };
         ExecuteCommandCommand = new AsyncRelayCommand(ExecuteCommandAsync, () => !IsExecuting);
+        CancelCommand = new RelayCommand(CancelExecution, () => IsExecuting);
         ClearOutputCommand = new RelayCommand(ClearOutput);
         CopyAllCommand = new AsyncRelayCommand(CopyAllAsync);
         ToggleLogPanelCommand = new RelayCommand(() => IsLogPanelExpanded = !IsLogPanelExpanded);
@@ -208,6 +213,7 @@ public class CommandTabViewModel : ObservableObject
         IsExecuting = true;
         StatusText = "Executing...";
         OutputLines.Clear();
+        _executionCancellationTokenSource = new CancellationTokenSource();
 
         using var subscription = App.LogSink.Subscribe(entry =>
         {
@@ -216,12 +222,18 @@ public class CommandTabViewModel : ObservableObject
 
         try
         {
+            var cancellationToken = _executionCancellationTokenSource.Token;
             var result = await Task.Run(() =>
-                CommandExecutionService.ExecuteAsync(selectedCommand, Parameters));
+                CommandExecutionService.ExecuteAsync(selectedCommand, Parameters, cancellationToken), cancellationToken);
 
             StatusText = result == 0
                 ? "✓ Command completed successfully."
                 : $"⚠ Command finished with exit code {result}.";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Command cancelled.";
+            OutputLines.Add(new LogEntry(DateTimeOffset.Now, LogEventLevel.Warning, "Command cancelled."));
         }
         catch (Exception ex)
         {
@@ -231,7 +243,20 @@ public class CommandTabViewModel : ObservableObject
         }
         finally
         {
+            _executionCancellationTokenSource?.Dispose();
+            _executionCancellationTokenSource = null;
             IsExecuting = false;
         }
+    }
+
+    private void CancelExecution()
+    {
+        if (_executionCancellationTokenSource is null || _executionCancellationTokenSource.IsCancellationRequested)
+        {
+            return;
+        }
+
+        StatusText = "Cancelling...";
+        _executionCancellationTokenSource.Cancel();
     }
 }

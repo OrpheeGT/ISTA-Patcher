@@ -30,10 +30,13 @@ public static partial class Patch
         var pendingPatchList = patcherProvider.GeneratePatchList(options);
         var indentLength = pendingPatchList.Select(i => i.Length).DefaultIfEmpty(0).Max() + 1;
 
-        var cts = new CancellationTokenSource();
         var factory = new TaskFactory(new ConcurrencyTaskScheduler(options.MaxDegreeOfParallelism));
-        var tasks = pendingPatchList.Select(item => factory.StartNew(() => PatchSingleFile(item, guiBasePath, indentLength, patcherProvider, options), cts.Token)).ToArray();
-        Task.WaitAll(tasks, cts.Token);
+        var tasks = pendingPatchList
+            .Select(item => factory.StartNew(
+                () => PatchSingleFile(item, guiBasePath, indentLength, patcherProvider, options),
+                options.CancellationToken))
+            .ToArray();
+        Task.WaitAll(tasks, options.CancellationToken);
 
         foreach (var patchedFileFullPath in tasks.Select(t => t.Result).OfType<string>())
         {
@@ -81,6 +84,8 @@ public static partial class Patch
 
     private static string? PatchSingleFile(string pendingPatchItem, string guiBasePath, int indentLength, IPatcherProvider patcherProvider, ISTAOptions.PatchOptions options)
     {
+        options.CancellationToken.ThrowIfCancellationRequested();
+
         var pendingPatchItemFullPath = pendingPatchItem.StartsWith('!')
             ? Path.Join(options.TargetPath, pendingPatchItem.Trim('!'))
             : Path.Join(guiBasePath, pendingPatchItem);
@@ -90,8 +95,7 @@ public static partial class Patch
         var expectedBasePath = Path.GetFullPath(
             pendingPatchItem.StartsWith('!') ? options.TargetPath : guiBasePath);
 
-        // Ensure path is within the expected directory
-        if (!pendingPatchItemFullPath.StartsWith(expectedBasePath, StringComparison.OrdinalIgnoreCase))
+        if (!PathSafetyUtils.IsPathWithinDirectory(expectedBasePath, pendingPatchItemFullPath))
         {
             Log.Error("Path traversal attempt detected: {Item}", pendingPatchItem);
             return null;
@@ -164,6 +168,8 @@ public static partial class Patch
 
             foreach (var patch in patcherProvider.Patches)
             {
+                options.CancellationToken.ThrowIfCancellationRequested();
+
                 var libraryList = IPatcherProvider.ExtractLibrariesConfigFromAttribute(patch.Method);
                 if (ShouldSkipPatch(skipLibraries, libraryList))
                 {

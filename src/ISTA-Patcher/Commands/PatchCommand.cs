@@ -25,6 +25,8 @@ public class PatchCommand : OptionalPatchOption, ICommonPatchOption
 {
     public RootCommand? ParentCommand { get; set; }
 
+    public CancellationToken CancellationToken { get; set; }
+
     public bool Restore { get; set; }
 
     public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
@@ -71,6 +73,7 @@ public class PatchCommand : OptionalPatchOption, ICommonPatchOption
             Force = this.Force,
             SkipLibrary = this.SkipLibrary,
             TargetPath = this.TargetPath,
+            CancellationToken = this.CancellationToken.CanBeCanceled ? this.CancellationToken : Global.CancellationToken,
         };
 
         var customPatchConfig = Global.Config.GetSection("CustomPatches").Get<List<CustomPatchDefinition>>();

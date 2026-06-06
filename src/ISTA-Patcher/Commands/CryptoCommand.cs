@@ -32,6 +32,8 @@ public class CryptoCommand
 {
     public RootCommand? ParentCommand { get; set; }
 
+    public CancellationToken CancellationToken { get; set; }
+
     [CliOption(Description = "Decrypt the integrity checklist.")]
     public bool Decrypt { get; set; }
 
@@ -53,6 +55,7 @@ public class CryptoCommand
             Integrity = this.Integrity,
             CreateKeyPair = this.CreateKeyPair,
             TargetPath = this.TargetPath,
+            CancellationToken = this.CancellationToken.CanBeCanceled ? this.CancellationToken : Global.CancellationToken,
         };
 
         await Execute(opts);
@@ -75,6 +78,7 @@ public class CryptoCommand
         {
             using var child = new SpanHandler(transaction, "CreateKeyPair");
             var filePath = Path.Join(basePath, "keyContainer.pfx");
+            opts.CancellationToken.ThrowIfCancellationRequested();
             await using Stream val = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite);
             GenerateKeyStore().Save(val, KeyPairConfig.Select(i => (char)i).ToArray(), new SecureRandom());
             Log.Information("Key pair saved to {FilePath}", filePath);
@@ -85,14 +89,14 @@ public class CryptoCommand
         {
             using var child = new SpanHandler(transaction, "Decrypt");
             var encryptedFileList = ISTAlter.Utils.Constants.EncCnePath.Aggregate(opts.TargetPath, Path.Join);
-            return await LoadFileList(encryptedFileList, opts.Integrity, basePath);
+            return await LoadFileList(encryptedFileList, opts.Integrity, basePath, opts.CancellationToken);
         }
 
         Log.Warning("No operation matched, exiting...");
         return -1;
     }
 
-    private static async Task<int> LoadFileList(string encryptedFileList, bool integrity, string basePath)
+    private static async Task<int> LoadFileList(string encryptedFileList, bool integrity, string basePath, CancellationToken cancellationToken)
     {
         if (!File.Exists(encryptedFileList))
         {
@@ -115,9 +119,11 @@ public class CryptoCommand
 
         foreach (var fileInfo in fileList)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (integrity)
             {
-                var checkResult = await CheckFileIntegrity(basePath, fileInfo).ConfigureAwait(false);
+                var checkResult = await CheckFileIntegrity(basePath, fileInfo, cancellationToken).ConfigureAwait(false);
                 var info = string.IsNullOrEmpty(checkResult.Value)
                     ? fileInfo.FilePath
                     : $"{fileInfo.FilePath} ({checkResult.Value})";
@@ -133,7 +139,7 @@ public class CryptoCommand
         return 0;
     }
 
-    private static async Task<KeyValuePair<string, string>> CheckFileIntegrity(string basePath, HashFileInfo fileInfo)
+    private static async Task<KeyValuePair<string, string>> CheckFileIntegrity(string basePath, HashFileInfo fileInfo, CancellationToken cancellationToken)
     {
         const string checkNG = "[red]NG[/]";
         const string checkNF = "[yellow]404[/]";
@@ -145,7 +151,11 @@ public class CryptoCommand
 
         string? checkResult;
         string version;
-        var filePath = Path.Join(basePath, fileInfo.FilePath);
+        if (!PathSafetyUtils.TryResolveRelativePath(basePath, fileInfo.FilePath, out var filePath))
+        {
+            return new KeyValuePair<string, string>(checkNF, "Invalid path");
+        }
+
         if (!File.Exists(filePath))
         {
             return new KeyValuePair<string, string>(checkNF, string.Empty);
@@ -167,7 +177,7 @@ public class CryptoCommand
         }
         else
         {
-            var realHash = await HashFileInfo.CalculateHash(filePath).ConfigureAwait(false);
+            var realHash = await HashFileInfo.CalculateHash(filePath, cancellationToken).ConfigureAwait(false);
             checkResult = string.Equals(realHash, fileInfo.Hash, StringComparison.Ordinal) ? checkOK : checkNG;
         }
 

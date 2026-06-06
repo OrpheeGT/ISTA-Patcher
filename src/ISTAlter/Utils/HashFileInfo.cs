@@ -56,13 +56,15 @@ public class HashFileInfo
         this._hash = fileInfos[1];
     }
 
-    public static async Task<string> CalculateHash(string pathFile)
+    public static Task<string> CalculateHash(string pathFile) => CalculateHash(pathFile, CancellationToken.None);
+
+    public static async Task<string> CalculateHash(string pathFile, CancellationToken cancellationToken)
     {
         try
         {
             using var sha = SHA256.Create();
             await using var fileStream = File.OpenRead(pathFile);
-            var hex = BitConverter.ToString(await sha.ComputeHashAsync(fileStream).ConfigureAwait(false));
+            var hex = BitConverter.ToString(await sha.ComputeHashAsync(fileStream, cancellationToken).ConfigureAwait(false));
             return hex.Replace("-", string.Empty, StringComparison.Ordinal);
         }
         catch (FileNotFoundException ex)
