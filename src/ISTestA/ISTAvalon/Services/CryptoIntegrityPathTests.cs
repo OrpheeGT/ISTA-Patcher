@@ -4,8 +4,6 @@
 namespace ISTestA.ISTAvalon.Services;
 
 using System.Reflection;
-using global::ISTAlter.Utils;
-using global::ISTAPatcher.Commands;
 
 public class CryptoIntegrityPathTests
 {

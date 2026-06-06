@@ -3,8 +3,6 @@
 
 namespace ISTestA.ISTAlter.Core;
 
-using global::ISTAlter.Utils;
-
 /// <summary>
 /// Tests for path traversal vulnerability in Patch.PatchSingleFile.
 /// </summary>

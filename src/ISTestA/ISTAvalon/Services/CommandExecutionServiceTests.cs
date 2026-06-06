@@ -3,11 +3,6 @@
 
 namespace ISTestA.ISTAvalon.Services;
 
-using global::ISTAlter;
-using global::ISTAvalon.Models;
-using global::ISTAvalon.Services;
-using global::ISTAvalon.ViewModels;
-
 public class CommandExecutionServiceTests
 {
     [SetUp]
@@ -130,7 +125,7 @@ public class CommandExecutionServiceTests
 
         public static string[] LastTags { get; set; } = [];
 
-        public static global::ISTAlter.ISTAOptions.PatchType LastPatchType { get; set; }
+        public static ISTAOptions.PatchType LastPatchType { get; set; }
 
         public ParentCommand? ParentCommand { get; set; }
 
@@ -138,7 +133,7 @@ public class CommandExecutionServiceTests
 
         public string[] Tags { get; set; } = [];
 
-        public global::ISTAlter.ISTAOptions.PatchType PatchType { get; set; }
+        public ISTAOptions.PatchType PatchType { get; set; }
 
         public Task<int> RunAsync()
         {

@@ -3,8 +3,6 @@
 
 namespace ISTestA.ISTAlter.Utils;
 
-using global::ISTAlter.Utils;
-
 public class PathSafetyUtilsTests
 {
     [Test]
