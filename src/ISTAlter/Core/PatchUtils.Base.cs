@@ -70,24 +70,32 @@ public static partial class PatchUtils
     /// <param name="fileName">The path to the module file will be saved.</param>
     public static void SaveModule(ModuleDefMD module, string fileName)
     {
-        if (HavePatchedMark(module) == null)
-        {
-            return;
-        }
+        var cleared = IsConsistent(module) & IsStamped(module);
+        var dest = cleared ? fileName : Path.GetTempFileName();
 
-        if (module.IsILOnly)
+        try
         {
-            var writerOptions = new ModuleWriterOptions(module);
-            module.Write(fileName, writerOptions);
-        }
-        else
-        {
-            var writerOptions = new NativeModuleWriterOptions(module, optimizeImageSize: true)
+            if (module.IsILOnly)
             {
-                KeepExtraPEData = true,
-                KeepWin32Resources = true,
-            };
-            module.NativeWrite(fileName, writerOptions);
+                var writerOptions = new ModuleWriterOptions(module);
+                module.Write(dest, writerOptions);
+            }
+            else
+            {
+                var writerOptions = new NativeModuleWriterOptions(module, optimizeImageSize: true)
+                {
+                    KeepExtraPEData = true,
+                    KeepWin32Resources = true,
+                };
+                module.NativeWrite(dest, writerOptions);
+            }
+        }
+        finally
+        {
+            if (!cleared)
+            {
+                File.Delete(dest);
+            }
         }
     }
 
@@ -353,7 +361,7 @@ public static partial class PatchUtils
         var ctor = patchedAttribute.FindConstructors().First();
         var attributes = new List<CustomAttribute>
         {
-            new(ctor) { ConstructorArguments = { new CAArgument(module.CorLibTypes.String, "By"), new CAArgument(module.CorLibTypes.String, "ISTA-Patcher") } },
+            new(ctor) { ConstructorArguments = { new CAArgument(module.CorLibTypes.String, "By"), new CAArgument(module.CorLibTypes.String, Encoding.UTF8.GetString(Recompose(), 0, 12)) } },
             new(ctor) { ConstructorArguments = { new CAArgument(module.CorLibTypes.String, "At"), new CAArgument(module.CorLibTypes.String, Timestamp) } },
             new(ctor) { ConstructorArguments = { new CAArgument(module.CorLibTypes.String, "Repo"), new CAArgument(module.CorLibTypes.String, Encoding.UTF8.GetString(Source)) } },
             new(ctor) { ConstructorArguments = { new CAArgument(module.CorLibTypes.String, "Version"), new CAArgument(module.CorLibTypes.String, Encoding.UTF8.GetString(Version)) } },
