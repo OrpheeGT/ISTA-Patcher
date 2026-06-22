@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: Copyright 2022-2026 TautCony
 
 namespace ISTAlter.Core;
@@ -412,6 +412,37 @@ public static partial class PatchUtils
             "\u0042\u004d\u0057.Rheingold.RheingoldSessionController.Logic",
             "IsSendOBFCMDataForbidden",
             DnlibUtils.ReturnTrueMethod
+        );
+    }
+
+    [NotSendPatch]
+    [LibraryName("RheingoldSessionController.dll")]
+    [FromVersion("4.55")]
+    public static int PatchEdgeTelemetry(ModuleDefMD module)
+    {
+        return module.PatchFunction(
+            "\u0042\u004d\u0057.Rheingold.RheingoldSessionController.Logic",
+            "SendSpeedlinkDataInBackground",
+            "()System.Void",
+            DnlibUtils.EmptyingMethod
+        ) + module.PatchFunction(
+            "\u0042\u004d\u0057.Rheingold.RheingoldSessionController.Logic",
+            "SendObfcmDataToVehicleShadowBackend",
+            "(\u0042\u004d\u0057.Rheingold.InfoProvider.EDGE.Models.OBFCM.OBFCMData,System.String)System.Void",
+            DnlibUtils.EmptyingMethod
+        );
+    }
+
+    [NotSendPatch]
+    [LibraryName("RheingoldInfoProvider.dll")]
+    [FromVersion("4.55")]
+    public static int PatchSccVehicleSession(ModuleDefMD module)
+    {
+        return module.PatchFunction(
+            "\u0042\u004d\u0057.Rheingold.InfoProvider.SCC.SCCProcessorImpl",
+            "PostVehicleSession",
+            "(System.Collections.Generic.IEnumerable`1<System.String>,\u0042\u004d\u0057.Rheingold.InfoProvider.SCC.Models.VehicleSession)System.Net.HttpStatusCode",
+            DnlibUtils.ReturnUInt32Method((uint)System.Net.HttpStatusCode.ServiceUnavailable)
         );
     }
 
